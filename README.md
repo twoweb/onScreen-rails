@@ -15,7 +15,7 @@ And then execute:
 
 ## Usage
 
-ElevateZoom is dependant on jQuery, so make sure you have it in your Gemfile.
+onScreen is dependant on jQuery, so make sure you have it in your Gemfile.
 
 ```
     //= require jquery
