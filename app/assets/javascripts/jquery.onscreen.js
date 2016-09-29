@@ -1,262 +1,373 @@
-(function($) {
+(function (global, factory) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
+  typeof define === 'function' && define.amd ? define(factory) :
+  (global.OnScreen = factory());
+}(this, function () { 'use strict';
 
-    $.fn.onScreen = function(options) {
-        
-        var params = {
-            container: window,
-            direction: 'vertical',
-            toggleClass: null,
-            doIn: null,
-            doOut: null,
-            tolerance: 0,
-            throttle: null,
-            lazyAttr: null,
-            lazyPlaceholder: 'data:image/gif;base64,R0lGODlhEAAFAIAAAP///////yH/C05FVFNDQVBFMi4wAwEAAAAh+QQJCQAAACwAAAAAEAAFAAACCIyPqcvtD00BACH5BAkJAAIALAAAAAAQAAUAgfT29Pz6/P///wAAAAIQTGCiywKPmjxUNhjtMlWrAgAh+QQJCQAFACwAAAAAEAAFAIK8urzc2tzEwsS8vrzc3tz///8AAAAAAAADFEiyUf6wCEBHvLPemIHdTzCMDegkACH5BAkJAAYALAAAAAAQAAUAgoSChLS2tIyKjLy+vIyOjMTCxP///wAAAAMUWCQ09jAaAiqQmFosdeXRUAkBCCUAIfkECQkACAAsAAAAABAABQCDvLq83N7c3Nrc9Pb0xMLE/P78vL68/Pr8////AAAAAAAAAAAAAAAAAAAAAAAAAAAABCEwkCnKGbegvQn4RjGMx8F1HxBi5Il4oEiap2DcVYlpZwQAIfkECQkACAAsAAAAABAABQCDvLq85OLkxMLE9Pb0vL685ObkxMbE/Pr8////AAAAAAAAAAAAAAAAAAAAAAAAAAAABCDwnCGHEcIMxPn4VAGMQNBx0zQEZHkiYNiap5RaBKG9EQAh+QQJCQAJACwAAAAAEAAFAIOEgoTMysyMjozs6uyUlpSMiozMzsyUkpTs7uz///8AAAAAAAAAAAAAAAAAAAAAAAAEGTBJiYgoBM09DfhAwHEeKI4dGKLTIHzCwEUAIfkECQkACAAsAAAAABAABQCDvLq85OLkxMLE9Pb0vL685ObkxMbE/Pr8////AAAAAAAAAAAAAAAAAAAAAAAAAAAABCAQSTmMEGaco8+UBSACwWBqHxKOJYd+q1iaXFoRRMbtEQAh+QQJCQAIACwAAAAAEAAFAIO8urzc3tzc2tz09vTEwsT8/vy8vrz8+vz///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAEIhBJWc6wJZAtJh3gcRBAaXiIZV2kiRbgNZbA6VXiUAhGL0QAIfkECQkABgAsAAAAABAABQCChIKEtLa0jIqMvL68jI6MxMLE////AAAAAxRoumxFgoxGCbiANos145e3DJcQJAAh+QQJCQAFACwAAAAAEAAFAIK8urzc2tzEwsS8vrzc3tz///8AAAAAAAADFFi6XCQwtCmAHbPVm9kGWKcEQxkkACH5BAkJAAIALAAAAAAQAAUAgfT29Pz6/P///wAAAAIRlI8SAZsPYnuJMUCRnNksWwAAOw==',
-            debug: false
-        };
+  /**
+   * Attaches the scroll event handler
+   *
+   * @return {void}
+   */
+  function attach() {
+      var container = this.options.container;
 
-        if (options !== 'remove') {
-            $.extend(params, options);
-        }
+      if (container instanceof HTMLElement) {
+          var style = window.getComputedStyle(container);
 
-        return this.each(function() {
+          if (style.position === 'static') {
+              container.style.position = 'relative';
+          }
+      }
 
-            var self = this;
-            var isOnScreen = false; // Initialize boolean
-            var scrollTop; // Initialize Vertical Scroll Position
-            var scrollLeft; // Initialize Horizontal Scroll Position
-            var $el = $(this); // Matched element
+      container.addEventListener('scroll', this._scroll);
+      window.addEventListener('resize', this._scroll);
+      this._scroll();
+      this.attached = true;
+  }
 
-            // Initialize Viewport dimensions
-            var $container;
-            var containerHeight;
-            var containerWidth;
-            var containerBottom;
-            var containerRight;
+  /**
+   * Checks an element's position in respect to the viewport
+   * and determines wether it's inside the viewport.
+   *
+   * @param {node} element The DOM node you want to check
+   * @return {boolean} A boolean value that indicates wether is on or off the viewport.
+   */
+  function inViewport(el) {
+      var options = arguments.length <= 1 || arguments[1] === undefined ? { tolerance: 0 } : arguments[1];
 
-            // Initialize element dimensions & position
-            var elHeight;
-            var elWidth;
-            var elTop;
-            var elLeft;
+      if (!el) {
+          throw new Error('You should specify the element you want to test');
+      }
 
-            // Checks if params.container is the Window Object
-            var containerIsWindow = $.isWindow(params.container);
+      if (typeof el === 'string') {
+          el = document.querySelector(el);
+      }
 
-            // Remove bindings from onScreen container
-            function remove() {
-                $(self).off('scroll.onScreen resize.onScreen');
-                $(window).off('resize.onScreen');
-            };
+      var elRect = el.getBoundingClientRect();
 
-            function verticalIn() {
-                if (containerIsWindow) {
-                    return elTop < containerBottom - params.tolerance &&
-                        scrollTop < (elTop + elHeight) - params.tolerance;
-                } else {
-                    return elTop < containerHeight - params.tolerance &&
-                        elTop > (-elHeight) + params.tolerance;
-                }
-            }
+      return (
+          // Check bottom boundary
+          elRect.bottom - options.tolerance > 0 &&
 
-            function verticalOut() {
-                if (containerIsWindow) {
-                    return elTop + (elHeight - params.tolerance) < scrollTop ||
-                        elTop > containerBottom - params.tolerance;
-                } else {
-                    return elTop > containerHeight - params.tolerance ||
-                        -elHeight + params.tolerance > elTop;
-                }
-            }
+          // Check right boundary
+          elRect.right - options.tolerance > 0 &&
 
-            function horizontalIn() {
-                if (containerIsWindow) {
-                    return elLeft < containerRight - params.tolerance &&
-                        scrollLeft < (elLeft + elWidth) - params.tolerance;
-                } else {
-                    return elLeft < containerWidth - params.tolerance &&
-                        elLeft > (-elWidth) + params.tolerance;
-                }
-            }
+          // Check left boundary
+          elRect.left + options.tolerance < (window.innerWidth || document.documentElement.clientWidth) &&
 
-            function horizontalOut() {
-                if (containerIsWindow) {
-                    return elLeft + (elWidth - params.tolerance) < scrollLeft ||
-                        elLeft > containerRight - params.tolerance;
-                } else {
-                    return elLeft > containerWidth - params.tolerance ||
-                        -elWidth + params.tolerance > elLeft;
-                }
-            }
+          // Check top boundary
+          elRect.top + options.tolerance < (window.innerHeight || document.documentElement.clientHeight)
+      );
+  }
 
-            function directionIn() {
-                if (isOnScreen) {
-                    return false;
-                }
+  /**
+   * Checks an element's position in respect to a HTMLElement
+   * and determines wether it's within its boundaries.
+   *
+   * @param {node} element The DOM node you want to check
+   * @return {boolean} A boolean value that indicates wether is on or off the container.
+   */
+  function inContainer(el) {
+      var options = arguments.length <= 1 || arguments[1] === undefined ? { tolerance: 0, container: '' } : arguments[1];
 
-                if (params.direction === 'horizontal') {
-                    return horizontalIn();
-                } else {
-                    return verticalIn();
-                }
-            }
+      if (!el) {
+          throw new Error('You should specify the element you want to test');
+      }
 
-            function directionOut() {
-                if (!isOnScreen) {
-                    return false;
-                }
+      if (typeof el === 'string') {
+          el = document.querySelector(el);
+      }
+      if (typeof options === 'string') {
+          options = {
+              tolerance: 0,
+              container: document.querySelector(options)
+          };
+      }
+      if (typeof options.container === 'string') {
+          options.container = document.querySelector(options.container);
+      }
+      if (options instanceof HTMLElement) {
+          options = {
+              tolerance: 0,
+              container: options
+          };
+      }
+      if (!options.container) {
+          throw new Error('You should specify a container element');
+      }
 
-                if (params.direction === 'horizontal') {
-                    return horizontalOut();
-                } else {
-                    return verticalOut();
-                }
-            }
+      var containerRect = options.container.getBoundingClientRect();
 
-            function throttle(fn, timeout, ctx) {
-                var timer, args, needInvoke;
-                return function() {
-                    args = arguments;
-                    needInvoke = true;
-                    ctx = ctx || this;
-                    if (!timer) {
-                        (function() {
-                            if (needInvoke) {
-                                fn.apply(ctx, args);
-                                needInvoke = false;
-                                timer = setTimeout(arguments.callee, timeout);
-                            } else {
-                                timer = null;
-                            }
-                        })();
-                    }
+      return (
+          // // Check bottom boundary
+          el.offsetTop + el.clientHeight - options.tolerance > options.container.scrollTop &&
 
-                };
+          // Check right boundary
+          el.offsetLeft + el.clientWidth - options.tolerance > options.container.scrollLeft &&
 
-            }
+          // Check left boundary
+          el.offsetLeft + options.tolerance < containerRect.width + options.container.scrollLeft &&
 
-            if (options === 'remove') {
-                remove();
-                return;
-            }
+          // // Check top boundary
+          el.offsetTop + options.tolerance < containerRect.height + options.container.scrollTop
+      );
+  }
 
-            var checkPos = function() {
-                // Make container relative
-                if (!containerIsWindow && $(params.container).css('position') === 'static') {
-                    $(params.container).css('position', 'relative');
-                }
+  function eventHandler() {
+      var trackedElements = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
+      var options = arguments.length <= 1 || arguments[1] === undefined ? { tolerance: 0 } : arguments[1];
 
-                // Update Viewport dimensions
-                $container = $(params.container);
-                containerHeight = $container.height();
-                containerWidth = $container.width();
-                containerBottom = $container.scrollTop() + containerHeight;
-                containerRight = $container.scrollLeft() + containerWidth;
+      var selectors = Object.keys(trackedElements);
+      var testVisibility = void 0;
 
-                // Update element dimensions & position
-                elHeight = $el.outerHeight(true);
-                elWidth = $el.outerWidth(true);
+      if (!selectors.length) return;
 
-                if (containerIsWindow) {
-                    var offset = $el.offset();
-                    elTop = offset.top;
-                    elLeft = offset.left;
-                } else {
-                    var position = $el.position();
-                    elTop = position.top;
-                    elLeft = position.left;
-                }
+      if (options.container === window) {
+          testVisibility = inViewport;
+      } else {
+          testVisibility = inContainer;
+      }
 
-                // Update scroll position
-                scrollTop = $container.scrollTop();
-                scrollLeft = $container.scrollLeft();
+      selectors.forEach(function (selector) {
+          trackedElements[selector].nodes.forEach(function (item) {
+              if (testVisibility(item.node, options)) {
+                  item.wasVisible = item.isVisible;
+                  item.isVisible = true;
+              } else {
+                  item.wasVisible = item.isVisible;
+                  item.isVisible = false;
+              }
+              if (item.isVisible === true && item.wasVisible === false) {
+                  if (typeof trackedElements[selector].enter === 'function') {
+                      trackedElements[selector].enter(item.node);
+                  }
+              }
+              if (item.isVisible === false && item.wasVisible === true) {
+                  if (typeof trackedElements[selector].leave === 'function') {
+                      trackedElements[selector].leave(item.node);
+                  }
+              }
+          });
+      });
+  }
 
-                // This will spam A LOT of messages in your console
-                if (params.debug) {
-                    console.log(
-                        'Container: ' + params.container + '\n' +
-                        'Width: ' + containerHeight + '\n' +
-                        'Height: ' + containerWidth + '\n' +
-                        'Bottom: ' + containerBottom + '\n' +
-                        'Right: ' + containerRight
-                    );
-                    console.log(
-                        'Matched element: ' + ($el.attr('class') !== undefined ? $el.prop('tagName').toLowerCase() + '.' + $el.attr('class') : $el.prop('tagName').toLowerCase()) + '\n' +
-                        'Left: ' + elLeft + '\n' +
-                        'Top: ' + elTop + '\n' +
-                        'Width: ' + elWidth + '\n' +
-                        'Height: ' + elHeight
-                    );
-                }
+  /**
+   * Debounces the scroll event to avoid performance issues
+   *
+   * @return {void}
+   */
+  function debouncedScroll() {
+      var _this = this;
 
-                if (directionIn()) {
-                    if (params.toggleClass) {
-                        $el.addClass(params.toggleClass);
-                    }
-                    if ($.isFunction(params.doIn)) {
-                        params.doIn.call($el[0]);
-                    }
-                    if (params.lazyAttr && $el.prop('tagName') === 'IMG') {
-                        var lazyImg = $el.attr(params.lazyAttr);
-                        if (lazyImg !== $el.prop('src')) {
-                            $el.css({
-                                background: 'url(' + params.lazyPlaceholder + ') 50% 50% no-repeat',
-                                minHeight: '5px',
-                                minWidth: '16px'
-                            });
+      var timeout = void 0;
 
-                            $el.prop('src', lazyImg).load(function() {
-                                $(this).css({
-                                    background: 'none'
-                                });
-                            });
-                        }
-                    }
-                    isOnScreen = true;
-                } else if (directionOut()) {
-                    if (params.toggleClass) {
-                        $el.removeClass(params.toggleClass);
-                    }
-                    if ($.isFunction(params.doOut)) {
-                        params.doOut.call($el[0]);
-                    }
-                    isOnScreen = false;
-                }
-            };
+      return function () {
+          clearTimeout(timeout);
 
-            if (window.location.hash) {
-                throttle(checkPos, 50);
-            } else {
-                checkPos();
-            }
+          timeout = setTimeout(function () {
+              eventHandler(_this.trackedElements, _this.options);
+          }, _this.options.throttle);
+      };
+  }
 
-            if (params.throttle) {
-                checkPos = throttle(checkPos, params.throttle);
-            }
+  /**
+   * Removes the scroll event handler
+   *
+   * @return {void}
+   */
+  function destroy() {
+    this.options.container.removeEventListener('scroll', this._scroll);
+    window.removeEventListener('resize', this._scroll);
+    this.attached = false;
+  }
 
-            // Attach checkPos
-            $(params.container).on('scroll.onScreen resize.onScreen', checkPos);
+  /**
+   * Stops tracking elements matching a CSS selector. If a selector has no
+   * callbacks it gets removed.
+   *
+   * @param {string} event The event you want to stop tracking (enter or leave)
+   * @param {string} selector The CSS selector you want to stop tracking
+   * @return {void}
+   */
+  function off(event, selector) {
+      if ({}.hasOwnProperty.call(this.trackedElements, selector)) {
+          if (this.trackedElements[selector][event]) {
+              delete this.trackedElements[selector][event];
+          }
+      }
+      if (!this.trackedElements[selector].enter && !this.trackedElements[selector].leave) {
+          delete this.trackedElements[selector];
+      }
+  }
 
-            // Since <div>s don't have a resize event, we have
-            // to attach checkPos to the window object as well
-            if (!containerIsWindow) {
-                $(window).on('resize.onScreen', checkPos);
-            }
+  /**
+   * Starts tracking elements matching a CSS selector
+   *
+   * @param {string} event The event you want to track (enter or leave)
+   * @param {string} selector The element you want to track
+   * @param {function} callback The callback function to handle the event
+   * @return {void}
+   */
+  function on(event, selector, callback) {
+      var allowed = ['enter', 'leave'];
 
-            // Module support
-            if (typeof module === 'object' && module && typeof module.exports === 'object') {
-                // Node.js module pattern
-                module.exports = jQuery;
-            } else {
-                // AMD
-                if (typeof define === 'function' && define.amd) {
-                    define('jquery-onscreen', [], function() {
-                        return jQuery;
-                    });
-                }
-            }
+      if (!event) throw new Error('No event given. Choose either enter or leave');
+      if (!selector) throw new Error('No selector to track');
+      if (allowed.indexOf(event) < 0) throw new Error(event + ' event is not supported');
 
-        });
-    };
+      if (!{}.hasOwnProperty.call(this.trackedElements, selector)) {
+          this.trackedElements[selector] = {};
+      }
 
-})(jQuery);
+      this.trackedElements[selector].nodes = [];
+
+      for (var i = 0; i < document.querySelectorAll(selector).length; i++) {
+          var item = {
+              isVisible: false,
+              wasVisible: false,
+              node: document.querySelectorAll(selector)[i]
+          };
+
+          this.trackedElements[selector].nodes.push(item);
+      }
+
+      if (typeof callback === 'function') {
+          this.trackedElements[selector][event] = callback;
+      }
+  }
+
+  /**
+   * Observes DOM mutations and runs a callback function when
+   * detecting one.
+   *
+   * @param {node} obj The DOM node you want to observe
+   * @param {function} callback The callback function you want to call
+   * @return {void}
+   */
+  function observeDOM(obj, callback) {
+      var MutationObserver = window.MutationObserver || window.WebKitMutationObserver;
+      var eventListenerSupported = window.addEventListener;
+
+      if (MutationObserver) {
+          var obs = new MutationObserver(function (mutations) {
+              if (mutations[0].addedNodes.length || mutations[0].removedNodes.length) callback();
+          });
+
+          obs.observe(obj, {
+              childList: true,
+              subtree: true
+          });
+      } else if (eventListenerSupported) {
+          obj.addEventListener('DOMNodeInserted', callback, false);
+          obj.addEventListener('DOMNodeRemoved', callback, false);
+      }
+  }
+
+  /**
+   * Detects wether DOM nodes enter or leave the viewport
+   *
+   * @constructor
+   * @param {object} options The configuration object
+   */
+  function OnScreen() {
+      var _this = this;
+
+      var options = arguments.length <= 0 || arguments[0] === undefined ? { tolerance: 0, debounce: 100, container: window } : arguments[0];
+
+      this.options = {};
+      this.trackedElements = {};
+
+      Object.defineProperties(this.options, {
+          container: {
+              configurable: false,
+              enumerable: false,
+              get: function get() {
+                  var container = void 0;
+
+                  if (typeof options.container === 'string') {
+                      container = document.querySelector(options.container);
+                  } else if (options.container instanceof HTMLElement) {
+                      container = options.container;
+                  }
+
+                  return container || window;
+              },
+              set: function set(value) {
+                  options.container = value;
+              }
+          },
+          debounce: {
+              get: function get() {
+                  return parseInt(options.debounce, 10) || 100;
+              },
+              set: function set(value) {
+                  options.debounce = value;
+              }
+          },
+          tolerance: {
+              get: function get() {
+                  return parseInt(options.tolerance, 10) || 0;
+              },
+              set: function set(value) {
+                  options.tolerance = value;
+              }
+          }
+      });
+
+      Object.defineProperty(this, '_scroll', {
+          enumerable: false,
+          configurable: false,
+          writable: false,
+          value: this._debouncedScroll.call(this)
+      });
+
+      observeDOM(document.querySelector('body'), function () {
+          Object.keys(_this.trackedElements).forEach(function (element) {
+              _this.on('enter', element);
+              _this.on('leave', element);
+          });
+      });
+
+      this.attach();
+  }
+
+  Object.defineProperties(OnScreen.prototype, {
+      _debouncedScroll: {
+          configurable: false,
+          writable: false,
+          enumerable: false,
+          value: debouncedScroll
+      },
+      attach: {
+          configurable: false,
+          writable: false,
+          enumerable: false,
+          value: attach
+      },
+      destroy: {
+          configurable: false,
+          writable: false,
+          enumerable: false,
+          value: destroy
+      },
+      off: {
+          configurable: false,
+          writable: false,
+          enumerable: false,
+          value: off
+      },
+      on: {
+          configurable: false,
+          writable: false,
+          enumerable: false,
+          value: on
+      }
+  });
+
+  OnScreen.check = inViewport;
+
+  return OnScreen;
+
+}));
+//# sourceMappingURL=on-screen.umd.js.map
