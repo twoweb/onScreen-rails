@@ -33,21 +33,22 @@ Or for the minified version
 Include jQuery and the plugin on a page.
 
 ```html
-$('elements').onScreen({
-   container: window,
-   direction: 'vertical',
-   doIn: function() {
-     // Do something to the matched elements as they come in
-   },
-   doOut: function() {
-     // Do something to the matched elements as they get off scren
-   },
-   tolerance: 0,
-   throttle: 50,
-   toggleClass: 'onScreen',
-   lazyAttr: null,
-   lazyPlaceholder: 'someImage.jpg',
-   debug: false
+var os = new OnScreen({
+  tolerance: 0,
+  debounce: 100,
+  container: window
+});
+
+// Do something when an element enters the viewport
+os.on('enter', '.someCSSSelector', (element) => {
+  // makes's the element's text red
+  element.style.color = 'red';
+});
+
+// Do something else when an element leaves
+os.on('leave', '.someCSSSelector', (element) => {
+  // makes's the element's text black
+  element.style.color = 'black';
 });
 ```
 
